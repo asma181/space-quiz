@@ -288,6 +288,7 @@
     .results .result-emoji { width: 88px; height: 88px; font-size: 46px; }
     .final-score { margin: 19px 0 8px; font-size: 48px; font-weight: 800; letter-spacing: -.06em; }
     .final-score span { color: var(--purple); }
+    .personal-best { margin: 0 0 12px; color: var(--muted); font-weight: 650; }
     .results .secondary { margin-top: 5px; }
     [hidden] { display: none !important; }
     @keyframes shake {
@@ -348,6 +349,7 @@
         <p class="eyebrow">Mission complete</p>
         <h1 id="result-title">The universe awaits!</h1>
         <p class="final-score"><span id="final-score">0</span><span style="color:var(--muted);font-size:25px;font-weight:650"> / 10</span></p>
+        <p class="personal-best" id="personal-best"></p>
         <p class="result-copy" id="result-copy"></p>
         <button class="secondary" id="restart-button" type="button">↻ &nbsp;Explore again</button>
       </div>
@@ -381,6 +383,7 @@
     let current = 0;
     let score = 0;
     let answered = false;
+    let sessionBest = 0;
 
     function renderQuestion() {
       answered = false;
@@ -430,11 +433,43 @@
       nextButton.focus();
     }
 
+    function updatePersonalBest(currentScore) {
+      let best = sessionBest;
+      let storageReadable = true;
+      try {
+        const saved = window.localStorage.getItem("orbit-personal-best");
+        const savedScore = Number(saved);
+        if (saved !== null && Number.isInteger(savedScore) && savedScore >= 0 && savedScore <= questions.length) {
+          best = Math.max(best, savedScore);
+        }
+      } catch {
+        storageReadable = false;
+      }
+      best = Math.max(best, currentScore);
+      sessionBest = best;
+      let storageWritable = storageReadable;
+      if (storageReadable) {
+        try {
+          window.localStorage.setItem("orbit-personal-best", String(best));
+        } catch {
+          storageWritable = false;
+        }
+      }
+      return { score: best, storageReadable, storageWritable };
+    }
+
     function showResults() {
       quiz.hidden = true;
       results.hidden = false;
       footer.hidden = true;
       document.getElementById("final-score").textContent = String(score);
+      const personalBest = updatePersonalBest(score);
+      const personalBestLabel = personalBest.storageWritable
+        ? "Personal best"
+        : personalBest.storageReadable
+          ? "Personal best (not saved)"
+          : "Personal best this session";
+      document.getElementById("personal-best").textContent = `${personalBestLabel}: ${personalBest.score} / ${questions.length}`;
       const reaction = score === 10
         ? ["🏆", "Out of this world!", "A perfect mission! You’re a true space explorer."]
         : score >= 7
