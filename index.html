@@ -289,6 +289,30 @@
     .final-score { margin: 19px 0 8px; font-size: 48px; font-weight: 800; letter-spacing: -.06em; }
     .final-score span { color: var(--purple); }
     .results .secondary { margin-top: 5px; }
+    .review-list {
+      display: grid;
+      gap: 12px;
+      margin: 16px 0 20px;
+      padding: 0;
+      list-style: none;
+      text-align: left;
+    }
+    .review-item {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--control-bg);
+    }
+    .review-item h2 { margin: 0 0 10px; font-size: 16px; line-height: 1.4; }
+    .review-answer { margin: 6px 0; color: var(--muted); font-size: 14px; }
+    .review-answer strong { color: var(--ink); }
+    .review-fact {
+      margin: 12px 0 0;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+    }
     [hidden] { display: none !important; }
     @keyframes shake {
       15%, 45%, 75% { transform: translateX(-6px); }
@@ -349,6 +373,11 @@
         <h1 id="result-title">The universe awaits!</h1>
         <p class="final-score"><span id="final-score">0</span><span style="color:var(--muted);font-size:25px;font-weight:650"> / 10</span></p>
         <p class="result-copy" id="result-copy"></p>
+        <button class="secondary" id="review-button" type="button" aria-controls="missed-review" aria-expanded="false" hidden>Review missed answers</button>
+        <section id="missed-review" aria-labelledby="missed-review-title" hidden>
+          <h2 id="missed-review-title">Missed questions</h2>
+          <ol class="review-list" id="review-list"></ol>
+        </section>
         <button class="secondary" id="restart-button" type="button">↻ &nbsp;Explore again</button>
       </div>
       <div class="footer" id="footer">A little curiosity goes a long way. ✨</div>
@@ -377,10 +406,14 @@
     const answersElement = document.getElementById("answers");
     const feedback = document.getElementById("feedback");
     const nextButton = document.getElementById("next-button");
+    const reviewButton = document.getElementById("review-button");
+    const missedReview = document.getElementById("missed-review");
+    const reviewList = document.getElementById("review-list");
     const progress = document.querySelector('[role="progressbar"]');
     let current = 0;
     let score = 0;
     let answered = false;
+    let selectedAnswers = [];
 
     function renderQuestion() {
       answered = false;
@@ -412,6 +445,7 @@
       if (answered) return;
       answered = true;
       const item = questions[current];
+      selectedAnswers[current] = selected;
       const buttons = [...answersElement.children];
       buttons.forEach(button => { button.disabled = true; });
       if (selected === item.answer) {
@@ -435,6 +469,9 @@
       results.hidden = false;
       footer.hidden = true;
       document.getElementById("final-score").textContent = String(score);
+      const missed = questions
+        .map((item, index) => ({ item, selected: selectedAnswers[index] }))
+        .filter(({ item, selected }) => selected !== item.answer);
       const reaction = score === 10
         ? ["🏆", "Out of this world!", "A perfect mission! You’re a true space explorer."]
         : score >= 7
@@ -444,7 +481,41 @@
             : ["🌙", "Curious cosmonaut!", "Every great explorer starts somewhere. Ready for another orbit?"];
       document.getElementById("result-emoji").textContent = reaction[0];
       document.getElementById("result-title").textContent = reaction[1];
-      document.getElementById("result-copy").textContent = reaction[2];
+      document.getElementById("result-copy").textContent = missed.length === 0
+        ? "Perfect score! There are no missed answers to review."
+        : reaction[2];
+      reviewList.replaceChildren();
+      missed.forEach(({ item, selected }, index) => {
+        const entry = document.createElement("li");
+        entry.className = "review-item";
+
+        const question = document.createElement("h2");
+        question.textContent = `${index + 1}. ${item.question}`;
+        entry.append(question);
+
+        const selectedAnswer = document.createElement("p");
+        selectedAnswer.className = "review-answer";
+        const selectedLabel = document.createElement("strong");
+        selectedLabel.textContent = "Your answer: ";
+        selectedAnswer.append(selectedLabel, item.options[selected]);
+        entry.append(selectedAnswer);
+
+        const correctAnswer = document.createElement("p");
+        correctAnswer.className = "review-answer";
+        const correctLabel = document.createElement("strong");
+        correctLabel.textContent = "Correct answer: ";
+        correctAnswer.append(correctLabel, item.options[item.answer]);
+        entry.append(correctAnswer);
+
+        const fact = document.createElement("p");
+        fact.className = "review-fact";
+        fact.textContent = item.fact;
+        entry.append(fact);
+        reviewList.append(entry);
+      });
+      reviewButton.hidden = missed.length === 0;
+      missedReview.hidden = true;
+      reviewButton.setAttribute("aria-expanded", "false");
       document.getElementById("progress-fill").style.width = "100%";
       progress.setAttribute("aria-valuenow", String(questions.length));
       document.getElementById("restart-button").focus();
@@ -462,9 +533,16 @@
       if (current === questions.length) showResults();
       else renderQuestion();
     });
+    reviewButton.addEventListener("click", () => {
+      const expanded = reviewButton.getAttribute("aria-expanded") === "true";
+      missedReview.hidden = expanded;
+      reviewButton.setAttribute("aria-expanded", String(!expanded));
+      reviewButton.textContent = expanded ? "Review missed answers" : "Hide missed answers";
+    });
     document.getElementById("restart-button").addEventListener("click", () => {
       current = 0;
       score = 0;
+      selectedAnswers = [];
       document.getElementById("score").textContent = "0";
       results.hidden = true;
       footer.hidden = false;
